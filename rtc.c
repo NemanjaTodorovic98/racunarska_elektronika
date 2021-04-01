@@ -1,6 +1,11 @@
 #include <bcm2835.h>  
 #include <stdio.h>
 #include <unistd.h>
+#include <wiringPi.h>
+#include <string.h>
+#include <lcd.h>
+#include <errno.h>
+
 #define changeHexToInt(hex)    ((((hex)>>4) *10 ) + ((hex)%16) )  //adrese registara
 
 #define SEK    0x02 
@@ -14,6 +19,13 @@ unsigned char WriteBuf[2];
 unsigned char ReadBuf;  
 unsigned char g8563_Store[6];   // sec,min,sat,dan,mesec,godina  
 unsigned char init8563_Store[6]={0x00,0x59,0x08,0x01,0x01,0x01};
+
+const int RS = 3;   
+const int EN = 14;  
+const int D0 = 4;   
+const int D1 = 12;  
+const int D2 = 13;  
+const int D3 = 6;  
 
 void P8563_settime() {    
   
@@ -58,7 +70,7 @@ void P8563_init() {
 	bcm2835_i2c_write(WriteBuf,2); 
 	} 
 	
-void P8563_Readtime() { 
+void P8563_ReadAndDisplaytime() { 
       
 	unsigned char time[7];       
 	WriteBuf[0] = SEK;      
@@ -68,8 +80,8 @@ void P8563_Readtime() {
 	g8563_Store[1] = time[1] & 0x7f;     
 	g8563_Store[2] = time[2] & 0x3f;
 	g8563_Store[3] = time[3] & 0x3f;     
-	g8563_Store[4] = time[4] & 0x1f;     
-	g8563_Store[5] = time[5] & 0xff;    
+	g8563_Store[4] = time[5] & 0x1f;     
+	g8563_Store[5] = time[6] & 0xff;    
 	 
 	g8563_Store[0] = changeHexToInt(g8563_Store[0]);    
 	g8563_Store[1] = changeHexToInt(g8563_Store[1]);    
@@ -77,9 +89,23 @@ void P8563_Readtime() {
 	g8563_Store[3] = changeHexToInt(g8563_Store[3]);    
 	g8563_Store[4] = changeHexToInt(g8563_Store[4]);    
 	g8563_Store[5] = changeHexToInt(g8563_Store[5]);
+	
+	lcdPosition(lcd_h, 0,0);
+	lcdPrintf(lcd_h,"%d:%d:%d",g8563_Store[2],g8563_Store[1],g8563_Store[0]);
+	lcdPosition(lcd_h, 0,1);
+	lcdPrintf(lcd_h, "%d.%d.%d",g8563_Store[3],g8563_Store[5],g8563_Store[6]);
+	
 	}
 	
-int main(int argc, char **argv)  {  
+int main(int argc, char **argv)  {
+	
+	int lcd_h;
+	if (wiringPiSetup() < 0)
+	{     
+		fprintf (stderr, "Greška pri inicijalizaciji: %s\n", strerror (errno)) ;     
+		return 1 ;
+	}
+	lcd_h = lcdInit(2, 16, 4, RS, EN, D0, D1, D2, D3, D0, D1, D2, D3);  
 
 	if (!bcm2835_init())            
 		return 1;   
@@ -92,9 +118,9 @@ int main(int argc, char **argv)  {
 	P8563_init() ;  
 	   
 	while(1){         
-		P8563_Readtime();  
-		printf("Sati:%d Minuti:%d Sekunde:%d\n", g8563_Store[2], g8563_Store[1], g8563_Store[0]);
-		printf("Dan:%d Mesec:%d Godina:%d\n", g8563_Store[3], g8563_Store[4], g8563_Store[5]);          			  			bcm2835_delay(5000);  
+		P8563_ReadAndDisplaytime();  
+		/*printf("Sati:%d Minuti:%d Sekunde:%d\n", g8563_Store[2], g8563_Store[1], g8563_Store[0]);
+		printf("Dan:%d Mesec:%d Godina:%d\n", g8563_Store[3], g8563_Store[4], g8563_Store[5]);          			  			bcm2835_delay(5000);  */
 		}     
 		  
 	bcm2835_i2c_end();       
